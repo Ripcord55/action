@@ -94,79 +94,22 @@ jobs:
           SILICONFLOW_COM: ${{ secrets.SILICONFLOW_COM }}
         run: |
           cp .env.example .env
-          # Use Python script to update .env file (more reliable than sed)
-          python3 << 'PYTHON_SCRIPT'
-          import os
-          import re
-          
-          env_file = '.env'
-          
-          # Read current .env file
-          if os.path.exists(env_file):
-              with open(env_file, 'r', encoding='utf-8') as f:
-                  content = f.read()
-          else:
-              content = ''
-          
-          # Define all variables to update
-          updates = {
-              'OCEANBASE_HOST': '127.0.0.1',
-              'OCEANBASE_PORT': '10001',
-              'OCEANBASE_USER': 'root',
-              'OCEANBASE_PASSWORD': '',
-              'OCEANBASE_DB': 'powermem',
-              'OCEANBASE_COLLECTION': 'memories',
-              'DATABASE_PROVIDER': 'oceanbase',
-              'LLM_PROVIDER': 'siliconflow',
-              'LLM_MODEL': 'nex-agi/DeepSeek-V3.1-Nex-N1',
-              'SILICONFLOW_LLM_BASE_URL': 'https://api.siliconflow.com/v1',
-              'GRAPH_STORE_PORT': '10001',
-              'GRAPH_STORE_PASSWORD': '',
-              'LLM_API_KEY': os.environ.get('SILICONFLOW_COM', ''),
-              'EMBEDDING_API_KEY': os.environ.get('QWEN', ''),
-              'DASHSCOPE_API_KEY': os.environ.get('QWEN', ''),  # Qwen embedding needs this
-          }
-          
-          # Update or add each variable
-          lines = content.split('\n')
-          existing_keys = set()
-          updated_lines = []
-          
-          for line in lines:
-              stripped = line.strip()
-              # Preserve comments and empty lines
-              if stripped.startswith('#') or not stripped:
-                  updated_lines.append(line)
-                  continue
-              
-              # Check if line contains a key=value pattern
-              match = re.match(r'^([^#=]+?)=(.*)$', stripped)
-              if match:
-                  key = match.group(1).strip()
-                  existing_keys.add(key)
-                  
-                  # Update if key is in our updates dict
-                  if key in updates:
-                      updated_lines.append(f"{key}={updates[key]}")
-                  else:
-                      # Keep original line if not in updates
-                      updated_lines.append(line)
-              else:
-                  # Keep line as-is if it doesn't match pattern
-                  updated_lines.append(line)
-          
-          # Add missing variables at the end
-          for key, value in updates.items():
-              if key not in existing_keys:
-                  updated_lines.append(f"{key}={value}")
-          
-          # Write back to file
-          with open(env_file, 'w', encoding='utf-8') as f:
-              f.write('\n'.join(updated_lines))
-          
-          print("✓ .env file updated successfully")
-          print(f"  Updated/added {len(updates)} environment variables")
-          PYTHON_SCRIPT
+          # Update existing environment variables
+          sed -i 's|^OCEANBASE_HOST=.*|OCEANBASE_HOST=127.0.0.1|' .env
+          sed -i 's|^OCEANBASE_PORT=.*|OCEANBASE_PORT=10001|' .env
+          sed -i 's|^OCEANBASE_USER=.*|OCEANBASE_USER=root|' .env
+          sed -i 's|^OCEANBASE_PASSWORD=.*|OCEANBASE_PASSWORD=|' .env
+          sed -i 's|^OCEANBASE_DB=.*|OCEANBASE_DB=powermem|' .env
+          sed -i 's|^OCEANBASE_COLLECTION=.*|OCEANBASE_COLLECTION=memories|' .env
+          sed -i 's|^DATABASE_PROVIDER=.*|DATABASE_PROVIDER=oceanbase|' .env
+          sed -i 's|^LLM_PROVIDER=.*|LLM_PROVIDER=siliconflow|' .env
+          sed -i 's|^LLM_MODEL=.*|LLM_MODEL=nex-agi/DeepSeek-V3.1-Nex-N1|' .env
+          sed -i 's|^SILICONFLOW_LLM_BASE_URL=.*|SILICONFLOW_LLM_BASE_URL=https://api.siliconflow.com/v1|' .env
+          sed -i 's|^GRAPH_STORE_PORT=.*|GRAPH_STORE_PORT=10001|' .env
+          sed -i 's|^GRAPH_STORE_PASSWORD=.*|GRAPH_STORE_PASSWORD=|' .env
+          sed -i "s|^LLM_API_KEY=.*|LLM_API_KEY=${SILICONFLOW_COM}|" .env
+          sed -i "s|^EMBEDDING_API_KEY=.*|EMBEDDING_API_KEY=${QWEN}|" .env
+
       - name: Run regression tests
         env:
           QWEN: ${{ secrets.QWEN }}
