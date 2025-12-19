@@ -85,8 +85,8 @@ jobs:
           sudo docker ps | grep seekdb || true
           echo "Recent logs:"
           sudo docker logs --tail 20 seekdb || true
-          sudo docker exec seekdb mysql -uroot -e "CREATE DATABASE IF NOT EXISTS powermem;" || echo "⚠ Warning: Failed to create database, but continuing..."
-          sudo docker exec seekdb mysql -uroot -e "SHOW DATABASES LIKE 'powermem';" || echo "⚠ Warning: Could not verify database, but continuing..."
+          mysql -uroot -h127.0.0.1 -P10001 -e "CREATE DATABASE IF NOT EXISTS powermem;" || echo "⚠ Warning: Failed to create database, but continuing..."
+          mysql -uroot -h127.0.0.1 -P10001 -e "SHOW DATABASES LIKE 'powermem';" || echo "⚠ Warning: Could not verify database, but continuing..."
 
       - name: Set env
         env:
