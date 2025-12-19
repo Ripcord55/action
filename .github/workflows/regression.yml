@@ -101,6 +101,13 @@ jobs:
           
           env_file = '.env'
           
+          # Read current .env file
+          if os.path.exists(env_file):
+              with open(env_file, 'r', encoding='utf-8') as f:
+                  content = f.read()
+          else:
+              content = ''
+          
           # Define all variables to update
           updates = {
               'OCEANBASE_HOST': '127.0.0.1',
@@ -117,6 +124,7 @@ jobs:
               'GRAPH_STORE_PASSWORD': '',
               'LLM_API_KEY': os.environ.get('SILICONFLOW_COM', ''),
               'EMBEDDING_API_KEY': os.environ.get('QWEN', ''),
+              'DASHSCOPE_API_KEY': os.environ.get('QWEN', ''),  # Qwen embedding needs this
           }
           
           # Update or add each variable
