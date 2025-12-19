@@ -89,10 +89,9 @@ jobs:
           mysql -uroot -h127.0.0.1 -P10001 -e "SHOW DATABASES LIKE 'powermem';" || echo "⚠ Warning: Could not verify database, but continuing..."
 
       - name: Set env
-        env:
-          QWEN: ${{ secrets.QWEN }}
-          SILICONFLOW_COM: ${{ secrets.SILICONFLOW_COM }}
         run: |
+          QWEN="${{ secrets.QWEN }}"
+          SILICONFLOW_COM="${{ secrets.SILICONFLOW_COM }}"
           cp .env.example .env
           # Update existing environment variables
           sed -i 's|^OCEANBASE_HOST=.*|OCEANBASE_HOST=127.0.0.1|' .env
