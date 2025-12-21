@@ -1,4 +1,5 @@
 """Executable walkthrough for `scenario_1_basic_usage.md`.
+
 Run `python docs/examples/scenario_1_basic_usage.py` to exercise every code
 sample from the Scenario 1 documentation in a single pass.
 """
