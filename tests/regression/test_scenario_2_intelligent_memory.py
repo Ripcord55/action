@@ -765,7 +765,7 @@ def test_sequential_duplicates() -> None:
     _safe_delete_all(memory, user_id=user_id)
 
 
-def test_main() -> None:
+def main() -> None:
     _print_banner("Powermem Scenario 2: Intelligent Memory")
     test_step1_enable_intelligent_processing()
     test_step2_duplicate_detection()
@@ -792,5 +792,5 @@ def test_main() -> None:
 
 
 if __name__ == "__main__":
-    test_main()
+    main()
 

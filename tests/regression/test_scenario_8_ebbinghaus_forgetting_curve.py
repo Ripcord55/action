@@ -18,6 +18,7 @@ except Exception:  # pragma: no cover
     plt = None  # type: ignore
     np = None  # type: ignore
 
+import pytest
 from dotenv import load_dotenv
 from powermem import create_memory
 from powermem.config_loader import auto_config
@@ -48,6 +49,21 @@ else:
 
 DEFAULT_USER_ID = "student_001"
 DEMO_USER_ID = "student_002"
+
+
+@pytest.fixture(scope="session")
+def memory():
+    """Session-scoped fixture providing a shared Memory instance for all tests."""
+    config = auto_config()
+    mem = create_memory(config=config)
+    yield mem
+    # Cleanup after all tests complete
+    try:
+        _safe_delete_all(mem, user_id=DEFAULT_USER_ID)
+        _safe_delete_all(mem, user_id=DEMO_USER_ID)
+        print(f"\n✓ Cleaned up all test data for users: {DEFAULT_USER_ID}, {DEMO_USER_ID}")
+    except Exception as e:
+        print(f"\n⚠ Could not cleanup test data: {str(e)[:100]}")
 
 
 def _print_banner(title: str) -> None:
@@ -99,7 +115,7 @@ def test_step1_show_retention_table() -> None:
 # Step 2: Add memories with timestamps
 # -----------------------------------------------------------------------------
 
-def test_step2_add_memories_with_timestamps(memory, user_id: str) -> List[int]:
+def test_step2_add_memories_with_timestamps(memory, user_id: str = DEFAULT_USER_ID) -> List[int]:
     _print_step("Step 2: Add Memories with Timestamps")
     _safe_delete_all(memory, user_id=user_id)
 
@@ -139,7 +155,7 @@ def test_step2_add_memories_with_timestamps(memory, user_id: str) -> List[int]:
 # Step 3: Calculate retention scores
 # -----------------------------------------------------------------------------
 
-def test_step3_calculate_retention_scores(memory, user_id: str) -> List[Dict[str, Any]]:
+def test_step3_calculate_retention_scores(memory, user_id: str = DEFAULT_USER_ID) -> List[Dict[str, Any]]:
     _print_step("Step 3: Calculate Retention Scores for Memories")
     all_memories = memory.get_all(user_id=user_id)
     memories = all_memories.get("results", [])
@@ -220,7 +236,7 @@ def search_with_retention_weighting(
     return weighted_results[:limit]
 
 
-def test_step4_search_with_retention(memory, user_id: str) -> None:
+def test_step4_search_with_retention(memory, user_id: str = DEFAULT_USER_ID) -> None:
     _print_step("Step 4: Apply Time-Based Weighting to Search Results")
     query = "Python programming concepts"
 
@@ -335,7 +351,7 @@ def get_next_review_time(mem: Dict[str, Any], retention_threshold: float = 0.5) 
     return 0, True
 
 
-def test_step6_spaced_repetition(memory, user_id: str) -> None:
+def test_step6_spaced_repetition(memory, user_id: str = DEFAULT_USER_ID) -> None:
     _print_step("Step 6: Implement Spaced Repetition Recommendations")
     all_memories = memory.get_all(user_id=user_id)
     memories = all_memories.get("results", [])
@@ -442,7 +458,7 @@ def test_step7_complete_demo(memory) -> None:
 # Main execution
 # -----------------------------------------------------------------------------
 
-def test_main() -> None:
+def main() -> None:
     _print_banner("Powermem Scenario 8: Ebbinghaus Forgetting Curve")
     
     # Load config and fix dashscope_base_url issue
@@ -470,6 +486,6 @@ def test_main() -> None:
 
 
 if __name__ == "__main__":
-    test_main()
+    main()
 
 

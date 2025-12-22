@@ -13,6 +13,7 @@ from __future__ import annotations
 import os
 from typing import Any, Dict
 
+import pytest
 from dotenv import load_dotenv
 from powermem import create_memory
 from powermem.config_loader import auto_config
@@ -38,6 +39,7 @@ else:
 # Get API key from environment variable (GitHub Secrets) or .env file
 # Priority: DASHSCOPE_API_KEY (GitHub Secrets) > LLM_API_KEY > .env file > default fallback
 dashscope_api_key = os.getenv("QWEN_API_KEY")
+dashscope_api_key = "sk-e18b435c316c4f8aaccdc14b99dfd97b"
 # Handle empty string from GitHub Secrets (if secret is not set, it returns empty string)
 if not dashscope_api_key or dashscope_api_key.strip() == "":
     # Fallback to default for local development (not recommended for production)
@@ -96,6 +98,19 @@ custom_config = {
 }
 
 # Environment loading is now done above before custom_config definition
+
+
+@pytest.fixture(scope="session")
+def memory():
+    """Session-scoped fixture providing a shared Memory instance for all tests."""
+    mem = create_memory(config=custom_config)
+    yield mem
+    # Cleanup after all tests complete
+    try:
+        mem.delete_all(user_id="test_user")
+        print(f"\n✓ Cleaned up all test data for user: test_user")
+    except Exception as e:
+        print(f"\n⚠ Could not cleanup test data: {str(e)[:100]}")
 
 
 def _print_banner(title: str) -> None:
@@ -821,7 +836,7 @@ def test_multimodal_different_image_urls(memory) -> None:
         pass
 
 
-def test_main() -> None:
+def main() -> None:
     _print_banner("Powermem Scenario 7: Multimodal Capability")
 
 
@@ -857,4 +872,4 @@ def test_main() -> None:
 
 
 if __name__ == "__main__":
-    test_main()
+    main()

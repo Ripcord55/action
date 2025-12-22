@@ -1408,7 +1408,7 @@ def test_complete_example() -> None:
         traceback.print_exc()
 
 
-def test_main() -> None:
+def main() -> None:
     """Main function to run all steps"""
     _print_banner("Powermem Scenario 5: Custom Integration")
     
@@ -1455,4 +1455,4 @@ def test_main() -> None:
 
 
 if __name__ == "__main__":
-    test_main()
+    main()

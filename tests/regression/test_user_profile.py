@@ -13,6 +13,7 @@ import os
 import logging
 import argparse
 
+import pytest
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 from powermem import UserMemory
@@ -37,6 +38,21 @@ def init_user_memory(config=None, agent_id="test_agent"):
     return user_memory
 
 
+@pytest.fixture(scope="session")
+def user_memory():
+    """Session-scoped fixture providing a shared UserMemory instance for all tests."""
+    config = auto_config()
+    um = UserMemory(config=config, agent_id="test_agent")
+    yield um
+    # Cleanup after all tests complete
+    try:
+        um.delete_all(user_id="user_001", agent_id="test_agent", delete_profile=True)
+        print(f"\n✓ Cleaned up all test data for user: user_001")
+    except Exception as e:
+        print(f"\n⚠ Could not cleanup test data: {str(e)[:100]}")
+
+
+@pytest.mark.skip(reason="Helper function, not meant to be run directly by pytest")
 def test_add_conversation(user_memory, conversation, user_id="user_001", agent_id="test_agent", test_name="Add conversation and extract profile"):
     """
     Test adding conversation and extracting profile
@@ -67,6 +83,7 @@ def test_add_conversation(user_memory, conversation, user_id="user_001", agent_i
     return result
 
 
+@pytest.mark.skip(reason="Helper function, not meant to be run directly by pytest")
 def test_get_profile(user_memory, user_id="user_001", agent_id=None, run_id=None, test_name="Get user profile"):
     """
     Test getting user profile
@@ -100,6 +117,7 @@ def test_get_profile(user_memory, user_id="user_001", agent_id=None, run_id=None
     return profile
 
 
+@pytest.mark.skip(reason="Helper function, not meant to be run directly by pytest")
 def test_delete_all(user_memory, user_id="user_001", agent_id="test_agent", run_id=None, delete_profile=True, test_name="Delete all memories and profile"):
     """
     Test deleting all memories and profile
@@ -128,6 +146,7 @@ def test_delete_all(user_memory, user_id="user_001", agent_id="test_agent", run_
     return result
 
 
+@pytest.mark.skip(reason="Helper function, not meant to be run directly by pytest")
 def test_search_memories(user_memory, user_id="user_001", agent_id="test_agent", query_without_profile="", query_with_profile="", limit=5):
     """
     Test searching memories with and without profile
@@ -171,15 +190,8 @@ def test_search_memories(user_memory, user_id="user_001", agent_id="test_agent",
     print(f"  - Profile included: {'profile_content' in search_result_with_profile}")
 
 
-def test_user_memory():
+def test_user_memory(user_memory):
     """Test UserMemory functionality with modular test functions"""
-    
-    # Initialize UserMemory with config
-    auto_load_config = auto_config()
-    print(auto_load_config)
-    
-    # Create UserMemory instance
-    user_memory = init_user_memory(config=auto_load_config, agent_id="test_agent")
     
     # Clean up before starting tests
     test_delete_all(user_memory, user_id="user_001", agent_id="test_agent", delete_profile=True, test_name="Test 0: Clean up before tests")

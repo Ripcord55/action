@@ -773,7 +773,7 @@ def test_agent_isolation_verification() -> None:
         _safe_delete_all(agent, user_id=user_id)
 
 
-def test_main() -> None:
+def main() -> None:
     _print_banner("Powermem Scenario 3: Multi-Agent")
 
     test_step1_create_agents()
@@ -802,5 +802,5 @@ def test_main() -> None:
 
 
 if __name__ == "__main__":
-    test_main()
+    main()
 

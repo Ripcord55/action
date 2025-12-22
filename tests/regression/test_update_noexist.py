@@ -316,7 +316,7 @@ def test_error_handling() -> None:
     _safe_delete_all(memory, user_id=user_id)
 
 
-def test_main() -> None:
+def main() -> None:
     """运行所有测试"""
     _print_banner("Non-existent Memory ID Operations Test Suite")
     print("This script tests the behavior of get/update/delete operations")
@@ -340,4 +340,4 @@ def test_main() -> None:
 
 
 if __name__ == "__main__":
-    test_main()
+    main()

@@ -775,7 +775,7 @@ def test_get_operations() -> None:
     _safe_delete_all(memory, user_id=user_id)
 
 
-def test_main() -> None:
+def main() -> None:
     
     _print_banner("Powermem Scenario 1: Basic Usage")
     # Core scenario steps
@@ -806,5 +806,5 @@ def test_main() -> None:
 
 
 if __name__ == "__main__":
-    test_main()
+    main()
 

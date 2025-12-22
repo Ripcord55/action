@@ -13,6 +13,7 @@ import os
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+import pytest
 from dotenv import load_dotenv
 from powermem.config_loader import auto_config
 
@@ -136,6 +137,20 @@ def create_memory() -> Memory:
     memory = Memory(config)
     print("Using Memory (in-memory simulation).")
     return memory
+
+
+@pytest.fixture(scope="session")
+def memory() -> Memory:
+    """Session-scoped fixture providing a shared Memory instance for all tests."""
+    mem = create_memory()
+    yield mem
+    # Cleanup after all tests complete
+    try:
+        mem.delete_all(user_id=USER_ID)
+        print(f"\n✓ Cleaned up all test data for user: {USER_ID}")
+    except Exception as e:
+        print(f"\n⚠ Could not cleanup test data: {str(e)[:100]}")
+
 
 # 配置和显示内存系统及子存储的信息
 def test_step1_configure(memory: Memory) -> None:
@@ -283,16 +298,16 @@ def test_step7_verify(memory: Memory) -> None:
     # Note: Cleanup will be done at the end of test_main()
 
 
-def test_main() -> None:
+def main() -> None:
     _print_banner("Powermem Scenario 6: Sub Stores (Simulated)")
     memory = create_memory()
-    # test_step1_configure(memory)
-    # test_step2_add_memories(memory)
-    # test_step3_query_before_migration(memory)
-    # test_step4_migrate(memory)
-    # test_step5_query_after_migration(memory)
-    # test_step6_add_new_memories(memory)
-    # test_step7_verify(memory)
+    test_step1_configure(memory)
+    test_step2_add_memories(memory)
+    test_step3_query_before_migration(memory)
+    test_step4_migrate(memory)
+    test_step5_query_after_migration(memory)
+    test_step6_add_new_memories(memory)
+    test_step7_verify(memory)
     
     
     # Cleanup all test data
@@ -306,5 +321,5 @@ def test_main() -> None:
 
 
 if __name__ == "__main__":
-    test_main()
+    main()
 

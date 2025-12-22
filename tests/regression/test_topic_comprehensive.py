@@ -13,6 +13,7 @@ This test suite covers all aspects of the Topic feature:
 import json
 import os
 import sys
+import pytest
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 from powermem import UserMemory, auto_config
 
@@ -21,6 +22,35 @@ def get_config():
     """Get configuration for UserMemory"""
     config = auto_config()
     return config
+
+
+@pytest.fixture(scope="session")
+def user_memory():
+    """Session-scoped fixture providing a shared UserMemory instance for all tests."""
+    config = get_config()
+    um = UserMemory(config=config, agent_id="test_agent")
+    yield um
+    # Cleanup after all tests complete
+    try:
+        test_user_ids = [
+            "topic_user_001", "topic_user_002", "topic_user_003_strict", "topic_user_003_non_strict",
+            "topic_user_004", "topic_user_005", "topic_user_006", "topic_user_007_1", "topic_user_007_2",
+            "topic_user_008", "topic_user_010", "topic_user_011",
+            "topic_user_012_1", "topic_user_012_2", "topic_user_012_3"
+        ]
+        # Add topic_user_009_* users
+        for idx in range(10):
+            test_user_ids.append(f"topic_user_009_{idx}")
+        
+        for user_id in test_user_ids:
+            try:
+                um.delete_all(user_id=user_id)
+            except Exception:
+                pass
+        
+        print(f"\n✓ Cleaned up all test data for {len(test_user_ids)} test users")
+    except Exception as e:
+        print(f"\n⚠ Could not cleanup all test data: {str(e)[:100]}")
 
 
 def print_section(title):
@@ -1050,7 +1080,7 @@ def test_case_12_pagination(user_memory):
 # Main Test Runner
 # ============================================================================
 
-def test_main():
+def main():
     """Run all test cases"""
     print("\n" + "="*70)
     print("  UserMemory Topic Functionality - Comprehensive Test Suite")
@@ -1136,5 +1166,5 @@ def test_main():
 
 
 if __name__ == "__main__":
-    test_main()
+    main()
 
