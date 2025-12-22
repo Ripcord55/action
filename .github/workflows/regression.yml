@@ -52,10 +52,10 @@ jobs:
         run: |
           pip install -e ".[dev,test]"
 
-      - name: Install Docker
-        run: |
-          curl -fsSL https://get.docker.com -o get-docker.sh
-          sudo sh get-docker.sh
+      # - name: Install Docker
+      #   run: |
+      #     curl -fsSL https://get.docker.com -o get-docker.sh
+      #     sudo sh get-docker.sh
       
 
       - name: Deploy SeekDB (OceanBase)
@@ -90,11 +90,13 @@ jobs:
 
       - name: Set env
         env:
-          QWEN: "${{ secrets.QWEN }}"
-          SILICONFLOW_COM: "${{ secrets.SILICONFLOW_COM }}"
+          QWEN_API_KEY: "${{ secrets.QWEN_API_KEY }}"
+          SILICONFLOW_CN_API_KEY: "${{ secrets.SILICONFLOW_CN_API_KEY }}"
+          SILICONFLOW_COM_API_KEY: "${{ secrets.SILICONFLOW_COM_API_KEY }}"
         run: |
-          echo "QWEN length: ${#QWEN}"
-          echo "SILICONFLOW_COM length: ${#SILICONFLOW_COM}"
+          echo "QWEN_API_KEY length: ${#QWEN_API_KEY}"
+          echo "SILICONFLOW_CN_API_KEY length: ${#SILICONFLOW_CN_API_KEY}"
+          echo "SILICONFLOW_COM_API_KEY length: ${#SILICONFLOW_COM_API_KEY}"
           cp .env.example .env
           # Update existing environment variables
           sed -i 's|^OCEANBASE_HOST=.*|OCEANBASE_HOST=127.0.0.1|' .env
@@ -109,14 +111,20 @@ jobs:
           sed -i 's|^SILICONFLOW_LLM_BASE_URL=.*|SILICONFLOW_LLM_BASE_URL=https://api.siliconflow.com/v1|' .env
           sed -i 's|^GRAPH_STORE_PORT=.*|GRAPH_STORE_PORT=10001|' .env
           sed -i 's|^GRAPH_STORE_PASSWORD=.*|GRAPH_STORE_PASSWORD=|' .env
-          sed -i "s|^LLM_API_KEY=.*|LLM_API_KEY=${SILICONFLOW_COM}|" .env
-          sed -i "s|^EMBEDDING_API_KEY=.*|EMBEDDING_API_KEY=${QWEN}|" .env
+          sed -i "s|^LLM_API_KEY=.*|LLM_API_KEY=${SILICONFLOW_COM_API_KEY}|" .env
+          sed -i "s|^EMBEDDING_API_KEY=.*|EMBEDDING_API_KEY=${QWEN_API_KEY}|" .env
 
       - name: Run regression tests
         env:
-          QWEN: "${{ secrets.QWEN }}"
-          SILICONFLOW_CN: "${{ secrets.SILICONFLOW_CN }}"
-          SILICONFLOW_COM: "${{ secrets.SILICONFLOW_COM }}"
+          QWEN_API_KEY: "${{ secrets.QWEN_API_KEY }}"
+          SILICONFLOW_CN_API_KEY: "${{ secrets.SILICONFLOW_CN_API_KEY }}"
+          SILICONFLOW_COM_API_KEY: "${{ secrets.SILICONFLOW_COM_API_KEY }}"
         run: |
-          pytest tests/regression/test_scenario_1_basic_usage.py -vs
-
+          pytest tests/regression/ -vs
+      - name: Cleanup Docker
+        if: always()
+        run: |
+          echo "清理 Docker 容器..."
+          sudo docker rm -f seekdb 2>/dev/null || true
+          sudo docker ps
+          echo "✓ 清理完成"
