@@ -39,7 +39,6 @@ else:
 # Get API key from environment variable (GitHub Secrets) or .env file
 # Priority: DASHSCOPE_API_KEY (GitHub Secrets) > LLM_API_KEY > .env file > default fallback
 dashscope_api_key = os.getenv("QWEN_API_KEY")
-dashscope_api_key = "sk-e18b435c316c4f8aaccdc14b99dfd97b"
 # Handle empty string from GitHub Secrets (if secret is not set, it returns empty string)
 if not dashscope_api_key or dashscope_api_key.strip() == "":
     # Fallback to default for local development (not recommended for production)
@@ -71,7 +70,7 @@ custom_config = {
             },
             "vidx_metric_type": "cosine",
             "index_type": "IVF_FLAT",
-            "embedding_model_dims": 768,  # Match text-embedding-v4 dimension
+            "embedding_model_dims": 1536,  # Match text-embedding-v4 dimension
             "primary_field": "id",
             "vector_field": "embedding",
             "text_field": "document",
@@ -83,7 +82,7 @@ custom_config = {
         "provider": "qwen",
         "config": {
             "model": "text-embedding-v4",
-            "embedding_dims": 768,  # text-embedding-v4 uses 768 dimensions
+            "embedding_dims": 1536,  # text-embedding-v4 uses 1536 dimensions
             "api_key": dashscope_api_key,
             "dashscope_base_url": "https://dashscope.aliyuncs.com/api/v1"
         }

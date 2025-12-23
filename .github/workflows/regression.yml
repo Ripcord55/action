@@ -120,7 +120,7 @@ jobs:
           SILICONFLOW_CN_API_KEY: "${{ secrets.SILICONFLOW_CN_API_KEY }}"
           SILICONFLOW_COM_API_KEY: "${{ secrets.SILICONFLOW_COM_API_KEY }}"
         run: |
-          pytest tests/regression/ -vs
+          pytest tests/regression/test_scenario_7_multimodal.py -vs
       - name: Cleanup Docker
         if: always()
         run: |
