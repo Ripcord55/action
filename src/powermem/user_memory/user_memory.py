@@ -48,30 +48,82 @@ class UserMemory:
         )
         
         # Initialize UserProfileStore using factory based on storage_type
-        # Extract connection config from memory's vector store
+        provider = self.memory.storage_type.lower()
         vector_store = self.memory.storage.vector_store
-        if hasattr(vector_store, 'connection_args'):
-            connection_args = vector_store.connection_args
-        else:
-            # Fallback to default connection args
-            connection_args = {}
         
-        # Build config for UserProfileStore
-        profile_store_config = {
-            "table_name": "user_profiles",
-            "connection_args": connection_args,
-            "host": connection_args.get("host"),
-            "port": connection_args.get("port"),
-            "user": connection_args.get("user"),
-            "password": connection_args.get("password"),
-            "db_name": connection_args.get("db_name"),
-        }
+        # Build config for UserProfileStore based on provider
+        if provider == "sqlite":
+            # SQLite uses database_path
+            profile_store_config = {
+                "table_name": "user_profiles",
+                "database_path": getattr(vector_store, 'db_path', ":memory:"),
+            }
+        else:
+            # OceanBase and other providers use connection_args
+            if hasattr(vector_store, 'connection_args'):
+                connection_args = vector_store.connection_args
+            else:
+                # Fallback to default connection args
+                connection_args = {}
+            
+            profile_store_config = {
+                "table_name": "user_profiles",
+                "connection_args": connection_args,
+                "host": connection_args.get("host"),
+                "port": connection_args.get("port"),
+                "user": connection_args.get("user"),
+                "password": connection_args.get("password"),
+                "db_name": connection_args.get("db_name"),
+            }
         
         # Use factory to create UserProfileStore based on storage_type
-        provider = self.memory.storage_type.lower()
         self.profile_store = UserProfileStoreFactory.create(provider, profile_store_config)
         
         logger.info("UserMemory initialized")
+
+    def _filter_messages_by_roles(
+        self,
+        messages: Any,
+        include_roles: Optional[List[str]] = None,
+        exclude_roles: Optional[List[str]] = None,
+    ) -> Any:
+        """
+        Filter messages by roles.
+
+        Args:
+            messages: Conversation messages (str, dict, or list[dict])
+            include_roles: List of roles to include. If empty or None, no include filter is applied.
+            exclude_roles: List of roles to exclude. If empty or None, no exclude filter is applied.
+
+        Returns:
+            Filtered messages. Returns original messages if not a list.
+        """
+        # Only process list format
+        if not isinstance(messages, list):
+            return messages
+
+        filtered_messages = []
+        for msg in messages:
+            if not isinstance(msg, dict):
+                # Keep non-dict items as-is
+                filtered_messages.append(msg)
+                continue
+
+            role = msg.get("role", "")
+
+            # Apply include filter (if include_roles is provided and not empty)
+            if include_roles:
+                if role not in include_roles:
+                    continue
+
+            # Apply exclude filter (if exclude_roles is provided and not empty)
+            if exclude_roles:
+                if role in exclude_roles:
+                    continue
+
+            filtered_messages.append(msg)
+
+        return filtered_messages
 
     def add(
         self,
@@ -88,6 +140,8 @@ class UserMemory:
         profile_type: str = "content",
         custom_topics: Optional[str] = None,
         strict_mode: bool = False,
+        include_roles: Optional[List[str]] = ["user"],
+        exclude_roles: Optional[List[str]] = ["assistant"],
     ) -> Dict[str, Any]:
         """
         Add messages and extract user profile information.
@@ -119,6 +173,10 @@ class UserMemory:
                 - All keys must be in snake_case (lowercase, underscores, no spaces)
                 - Descriptions are for reference only and should NOT be used as keys in the output
             strict_mode: If True, only output topics from the provided list. Only used when profile_type="topics". Default: False
+            include_roles: List of roles to include when filtering messages for profile extraction.
+                Defaults to ["user"]. If explicitly set to None or [], no include filter is applied.
+            exclude_roles: List of roles to exclude when filtering messages for profile extraction.
+                Defaults to ["assistant"]. If explicitly set to None or [], no exclude filter is applied.
 
         Returns:
             Dict[str, Any]: A dictionary containing the add operation results with the following structure:
@@ -146,10 +204,17 @@ class UserMemory:
             # Step 2: Extract profile information
             logger.info(f"Step 2: Extracting profile information for user_id: {user_id}, profile_type: {profile_type}")
 
+            # Filter messages by roles for profile extraction
+            filtered_messages = self._filter_messages_by_roles(
+                messages=messages,
+                include_roles=include_roles,
+                exclude_roles=exclude_roles,
+            )
+
             if profile_type == "topics":
                 # Extract structured topics
                 extracted_data = self._extract_topics(
-                    messages=messages,
+                    messages=filtered_messages,
                     user_id=user_id,
                     custom_topics=custom_topics,
                     strict_mode=strict_mode,
@@ -158,7 +223,7 @@ class UserMemory:
             else:
                 # Extract non-structured profile content (default behavior)
                 extracted_data = self._extract_profile(
-                    messages=messages,
+                    messages=filtered_messages,
                     user_id=user_id,
                 )
                 result_key = "profile_content"
