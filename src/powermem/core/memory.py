@@ -15,7 +15,7 @@ from copy import deepcopy
 
 from .base import MemoryBase
 from ..configs import MemoryConfig
-from ..integrations.embeddings.config.sparse_base import BaseSparseEmbedderConfig, SparseEmbedderConfig
+from ..integrations.embeddings.config.sparse_base import BaseSparseEmbedderConfig
 from ..storage.factory import VectorStoreFactory, GraphStoreFactory
 from ..storage.adapter import StorageAdapter, SubStorageAdapter
 from ..intelligence.manager import IntelligenceManager
@@ -253,9 +253,12 @@ class Memory(MemoryBase):
 
             if sparse_config_obj:
                 try:
-                    # Handle SparseEmbedderConfig (BaseModel with provider and config) or dict format
-                    if hasattr(sparse_config_obj, 'provider') and hasattr(sparse_config_obj, 'config'):
-                        # It's a SparseEmbedderConfig (BaseModel) object
+                    # Handle BaseSparseEmbedderConfig, legacy wrapper, or dict format
+                    if isinstance(sparse_config_obj, BaseSparseEmbedderConfig):
+                        sparse_embedder_provider = sparse_config_obj._provider_name
+                        config_dict = sparse_config_obj.model_dump(exclude_none=True)
+                    elif hasattr(sparse_config_obj, 'provider') and hasattr(sparse_config_obj, 'config'):
+                        # Legacy wrapper with provider + config fields
                         sparse_embedder_provider = sparse_config_obj.provider
                         config_dict = sparse_config_obj.config or {}
                     elif isinstance(sparse_config_obj, dict):
@@ -263,7 +266,10 @@ class Memory(MemoryBase):
                         sparse_embedder_provider = sparse_config_obj.get('provider')
                         config_dict = sparse_config_obj.get('config', {})
                     else:
-                        logger.warning(f"Unknown sparse_embedder config format: {type(sparse_config_obj)}. Expected SparseEmbedderConfig or dict with 'provider' and 'config' keys.")
+                        logger.warning(
+                            "Unknown sparse_embedder config format: %s. Expected BaseSparseEmbedderConfig or dict with 'provider' and 'config' keys.",
+                            type(sparse_config_obj),
+                        )
                         sparse_embedder_provider = None
                         config_dict = {}
 
@@ -370,10 +376,16 @@ class Memory(MemoryBase):
             Boolean indicating whether graph store is enabled
         """
         if self.memory_config:
-            return self.memory_config.graph_store.enabled if self.memory_config.graph_store else False
+            # graph_store is None means disabled, otherwise enabled
+            return self.memory_config.graph_store is not None
         else:
             graph_store_config = self.config.get('graph_store', {})
-            return graph_store_config.get('enabled', False) if graph_store_config else False
+            # Support both old format (dict with 'enabled') and new format (config object)
+            if isinstance(graph_store_config, dict):
+                return graph_store_config.get('enabled', False) if graph_store_config else False
+            else:
+                # New format: config object means enabled
+                return graph_store_config is not None
 
     def _get_intelligent_memory_config(self) -> Dict[str, Any]:
         """
