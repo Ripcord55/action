@@ -146,6 +146,7 @@ jobs:
           sed -i "s|^POWERMEM_SERVER_API_KEYS=.*|POWERMEM_SERVER_API_KEYS=key1,key2,key3|" .env
 
       - name: Run regression tests
+        id: run_tests
         env:
           QWEN_API_KEY: "${{ secrets.QWEN_API_KEY }}"
           SILICONFLOW_CN_API_KEY: "${{ secrets.SILICONFLOW_CN_API_KEY }}"
@@ -154,7 +155,7 @@ jobs:
           mkdir -p report
           pytest tests/regression/test_scenario*.py -vs --junitxml=report/test1.xml
       - name: Upload JUnit report
-        if: always()
+        if: always() && (steps.run_tests.outcome == 'success' || steps.run_tests.outcome == 'failure')
         uses: actions/upload-artifact@v4
         with:
           name: junit-test1
@@ -283,6 +284,7 @@ jobs:
           sed -i "s|^POWERMEM_SERVER_API_KEYS=.*|POWERMEM_SERVER_API_KEYS=key1,key2,key3|" .env
 
       - name: Run regression tests
+        id: run_tests
         env:
           QWEN_API_KEY: "${{ secrets.QWEN_API_KEY }}"
           SILICONFLOW_CN_API_KEY: "${{ secrets.SILICONFLOW_CN_API_KEY }}"
@@ -291,7 +293,7 @@ jobs:
           mkdir -p report
           pytest tests/regression/test_*.py --ignore=tests/regression/test_scenario*.py -vs --junitxml=report/test2.xml
       - name: Upload JUnit report
-        if: always()
+        if: always() && (steps.run_tests.outcome == 'success' || steps.run_tests.outcome == 'failure')
         uses: actions/upload-artifact@v4
         with:
           name: junit-test2
