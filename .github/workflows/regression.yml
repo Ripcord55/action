@@ -318,9 +318,8 @@ jobs:
       - name: Collect JUnit reports
         run: |
           mkdir -p all-reports
-          for dir in junit-test1 junit-test2; do
-            [ -d "$dir/report" ] && cp "$dir/report"/*.xml all-reports/ 2>/dev/null || true
-          done
+          # download-artifact 解压后可能是 junit-test1/report/test1.xml 或 junit-test1/test1.xml，用 find 兼容两种结构
+          find junit-test1 junit-test2 -maxdepth 3 -name '*.xml' -exec cp {} all-reports/ \;
           ls -la all-reports/
       - name: Publish Test Report Summary
         uses: mikepenz/action-junit-report@v4
