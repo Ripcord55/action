@@ -467,9 +467,10 @@ class TestMemoryList:
         long_agent_id = "list_agent_id_1234567890"
         try:
             rc, out, err = cli_runner.pmem(
-                f'memory add "user1 is 1 year old" --user-id {long_user_id} --agent-id {long_agent_id}'
+                f'memory add "user1 is 1 year old" --user-id {long_user_id} --agent-id {long_agent_id} '
+                f"--no-infer"
             )
-            assert_success(rc, out, err, "add")
+            assert_contains(rc, out, err, ["[SUCCESS]", "Memory ADD", "ID="])
 
             rc, out, err = cli_runner.pmem(
                 f"memory list --user-id {long_user_id} --agent-id {long_agent_id} --limit 5"
