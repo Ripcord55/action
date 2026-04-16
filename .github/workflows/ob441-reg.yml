@@ -71,7 +71,7 @@ jobs:
           # Remove existing container if it exists
           sudo docker rm -f oceanbase 2>/dev/null || true
           # Start OceanBase CE 4.4.1 container
-          sudo docker run -d -p 10001:2881 -e MEMORY_LIMIT=4G -e LOG_DISK_SIZE=4G -e DATAFILE_SIZE=4G -e DATAFILE_NEXT=4G -e DATAFILE_MAXSIZE=10G --name oceanbase oceanbase/oceanbase-ce:4.4.1
+          sudo docker run -d -p 10001:2881 -e MEMORY_LIMIT=4G -e LOG_DISK_SIZE=4G -e DATAFILE_SIZE=4G -e DATAFILE_NEXT=4G -e DATAFILE_MAXSIZE=10G --name oceanbase oceanbase/oceanbase-ce:4.4.1.0-100010012025120515
           # Wait for database to be ready
           echo "Waiting for OceanBase to be ready..."
           timeout=60
