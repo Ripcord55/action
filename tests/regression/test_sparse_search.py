@@ -8,23 +8,123 @@ Core checks:
 4. Compare performance with/without sparse vector support.
 """
 import logging
+import os
+import sys
 import time
 from typing import List, Dict, Any
 
 import pytest
 
+# Add project root to Python path
+project_root = os.path.join(os.path.dirname(__file__), "..", "..")
+project_root = os.path.abspath(project_root)
+sys.path.insert(0, project_root)
+
+# Change working directory to project root
+os.chdir(project_root)
+
+from powermem import auto_config, Memory
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
+
+SEED_MEMORY_TEXTS = (
+    "I like to take a morning nap on weekends before going out in the afternoon.",
+    "Machine learning is a core branch of artificial intelligence with supervised and unsupervised methods.",
+    "Deep learning uses multi-layer neural networks; people often discuss machine learning and deep learning together.",
+    "Natural language processing combines linguistics and neural network approaches.",
+    "Mobile payment and online education are increasingly common in remote work scenarios.",
+)
+
+
+@pytest.fixture(scope="function")
+def memory_with_sparse():
+    """Create a Memory instance with sparse vector support enabled."""
+    config = auto_config()
+    
+    if 'vector_store' not in config:
+        config['vector_store'] = {}
+    if 'config' not in config['vector_store']:
+        config['vector_store']['config'] = {}
+    config['vector_store']['config']['include_sparse'] = True
+    
+    memory = Memory(config=config)
+    
+    for text in SEED_MEMORY_TEXTS:
+        memory.add(text, user_id="test_user_sparse")
+    
+    yield memory
+
+
+@pytest.fixture(scope="function")
+def memory_without_sparse():
+    """Create a Memory instance with sparse vector support disabled."""
+    config = auto_config()
+    
+    if 'vector_store' not in config:
+        config['vector_store'] = {}
+    if 'config' not in config['vector_store']:
+        config['vector_store']['config'] = {}
+    config['vector_store']['config']['include_sparse'] = False
+    
+    memory = Memory(config=config)
+    
+    for text in SEED_MEMORY_TEXTS:
+        memory.add(text, user_id="test_user_sparse")
+    
+    yield memory
+
+
+@pytest.fixture(scope="session")
+def test_queries():
+    """Return default test queries for performance testing."""
+    return [
+        "morning nap",
+        "machine learning",
+        "deep learning",
+        "natural language processing",
+        "mobile payment",
+    ]
+
+
+@pytest.fixture(scope="session")
+def compound_word_queries():
+    """Return compound-term queries for testing."""
+    return [
+        "morning nap",
+        "mobile payment",
+        "online education",
+        "remote work",
+        "machine learning",
+        "deep learning",
+        "natural language processing",
+    ]
 
 
 class TestSparseSearch:
     """Sparse vector search regression test suite."""
     
     @pytest.fixture(autouse=True)
-    def setup(self, memory_with_sparse_seeded):
+    def setup(self):
         """Set up test fixtures - runs before each test method."""
-        self.memory_data = memory_with_sparse_seeded
-        self.memory = self.memory_data["memory"]
-        self.user_id = self.memory_data["user_id"]
+        config = auto_config()
+        
+        if 'vector_store' not in config:
+            config['vector_store'] = {}
+        if 'config' not in config['vector_store']:
+            config['vector_store']['config'] = {}
+        config['vector_store']['config']['include_sparse'] = True
+        
+        self.memory = Memory(config=config)
+        self.user_id = "test_user_sparse"
+        
+        # Seed test data
+        for text in SEED_MEMORY_TEXTS:
+            self.memory.add(text, user_id=self.user_id)
+        
         yield
     
     def test_search_results(self):
