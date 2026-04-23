@@ -19,6 +19,11 @@ Dependencies for this file are declared only here (no separate requirements txt 
 **Opt out:** ``POWERMEM_DASHBOARD_NO_AUTO_INSTALL=1`` — skip auto pip; missing plugin → module skip.
 ``POWERMEM_DASHBOARD_NO_AUTO_BROWSER_INSTALL=1`` — skip ``playwright install`` (packages still auto-pip if needed).
 ``POWERMEM_DASHBOARD_NO_AUTO_BROWSER_DEPS=1`` — do not use ``--with-deps`` on Linux/CI.
+``POWERMEM_DASHBOARD_SKIP_PREFLIGHT=1`` — skip pre-test environment checks (socket/HTTP/Playwright).
+``POWERMEM_DASHBOARD_PREFLIGHT_STRICT`` — if Playwright can load the dashboard with
+``domcontentloaded`` but not ``networkidle`` within 30s, treat as failure. If unset,
+defaults to **on in CI** and **off locally**. Set ``0``/``1`` to force.
+Optional: ``POWERMEM_DASHBOARD_PREFLIGHT_NETWORKIDLE_MS`` (default ``30000``) for the networkidle wait.
 
 **Server reset before cases (default):** At session start, from the repo root, runs
 ``make server-stop`` then ``make server-dashboard-start`` so the dashboard is built
@@ -49,11 +54,13 @@ import importlib.util
 import json
 import os
 import re
+import socket
 import subprocess
 import sys
 import tempfile
 import time
-from typing import Any, Dict, Optional
+import traceback
+from typing import Any, Dict, Optional, Tuple
 
 import pytest
 
@@ -252,6 +259,187 @@ def _reset_server_and_built_dashboard():
     print("[SETUP] Waiting 10s for server process to accept connections...\n", flush=True)
     time.sleep(10)
     yield
+
+
+def _preflight_log(msg: str) -> None:
+    print(f"[DASHBOARD PREFLIGHT] {msg}", flush=True)
+
+
+def _local_port_open(host: str, port: int, timeout_s: float = 0.5) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=timeout_s):
+            return True
+    except OSError:
+        return False
+
+
+def _wait_for_port(host: str, port: int, *, total_s: int, label: str) -> None:
+    deadline = time.time() + total_s
+    while time.time() < deadline:
+        if _local_port_open(host, port):
+            _preflight_log(f"port {port} is accepting connections ({label})")
+            return
+        time.sleep(0.5)
+    pytest.fail(
+        f"{label}: nothing is listening on {host}:{port} after {total_s}s — "
+        "is the API server up? Check make server-start / server.log."
+    )
+
+
+def _http_check(
+    method: str,
+    url: str,
+    *,
+    headers: Optional[Dict[str, str]] = None,
+    timeout: int = 15,
+) -> Tuple[int, str]:
+    import requests
+
+    r = requests.request(method, url, headers=headers or {}, timeout=timeout)
+    text = (r.text or "")[:500]
+    return r.status_code, text
+
+
+def _import_versions_log() -> None:
+    _preflight_log(f"python: {sys.version.split()[0]} ({sys.executable})")
+    try:
+        import playwright  # type: ignore[import-not-found]
+    except Exception as e:  # pragma: no cover
+        pytest.fail(
+            f"import playwright failed: {e}\n" + traceback.format_exc()
+        )
+    try:
+        import pytest_playwright  # type: ignore[import-not-found]
+    except Exception as e:  # pragma: no cover
+        pytest.fail(
+            f"import pytest_playwright failed: {e}\n" + traceback.format_exc()
+        )
+    _preflight_log(f"playwright package: {getattr(playwright, '__version__', 'unknown')}")
+    _preflight_log(f"pytest_playwright: {getattr(pytest_playwright, '__version__', 'ok')}")
+
+
+def _playwright_chromium_sanity(
+    api_key: str,
+    *,
+    preflight_networkidle: bool,
+    networkidle_ms: int,
+    strict_networkidle: bool,
+) -> None:
+    from playwright.sync_api import sync_playwright
+
+    _preflight_log("launching Chromium (sync_playwright)…")
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            try:
+                page = browser.new_context().new_page()
+                page.add_init_script(
+                    f"localStorage.setItem('powermem_api_key', {json.dumps(api_key)});"
+                )
+                page.goto(DASHBOARD_URL, wait_until="domcontentloaded", timeout=30_000)
+                title = page.title()
+                _preflight_log(f"chromium: domcontentloaded OK, document.title={title!r}")
+                if preflight_networkidle:
+                    try:
+                        page.goto(DASHBOARD_URL, wait_until="networkidle", timeout=networkidle_ms)
+                        _preflight_log("chromium: networkidle OK (same as dashboard_page wait_until)")
+                    except Exception as e:
+                        msg = (
+                            f"chromium: networkidle wait failed ({networkidle_ms}ms): {e}\n"
+                            "The UI tests use wait_until=networkidle on goto/reload; "
+                            "hanging fetches (analytics, long polling) can cause this in CI. "
+                            "Set POWERMEM_DASHBOARD_PREFLIGHT_STRICT=0 to only warn, "
+                            "or fix the dashboard / test waits."
+                        )
+                        if strict_networkidle:
+                            pytest.fail(msg + "\n" + traceback.format_exc())
+                        _preflight_log("WARNING: " + msg)
+            finally:
+                browser.close()
+    except Exception as e:
+        pytest.fail(
+            "Playwright Chromium failed to start or open the dashboard.\n"
+            f"{e}\n{traceback.format_exc()}"
+        )
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _dashboard_e2e_preflight(
+    _reset_server_and_built_dashboard,
+    api_key: str,
+) -> None:
+    """
+    After server + dashboard are ready, verify socket/HTTP/Playwright before UI cases.
+
+    Runs after ``_reset_server_and_built_dashboard`` and before module fixtures that
+    create data (e.g. ``setup_test_memories``) so CI logs show a clear root cause
+    when Playwright fails while API-only tests still pass.
+    """
+    if _env_truthy("POWERMEM_DASHBOARD_SKIP_PREFLIGHT"):
+        _preflight_log("skipped (POWERMEM_DASHBOARD_SKIP_PREFLIGHT=1)")
+        return
+
+    _preflight_log("begin environment checks (deps already ensured at import time)")
+    _import_versions_log()
+
+    health_url = f"{API_BASE_URL.rstrip('/')}/system/health"
+    # In CI, default to strict networkidle preflight (same wait as many UI tests) so we fail
+    # here with a clear message instead of a generic Playwright fixture ERROR.
+    if os.environ.get("POWERMEM_DASHBOARD_PREFLIGHT_STRICT") is not None:
+        strict_net = _env_truthy("POWERMEM_DASHBOARD_PREFLIGHT_STRICT")
+    else:
+        strict_net = _env_truthy("CI")
+    net_ms = int(os.environ.get("POWERMEM_DASHBOARD_PREFLIGHT_NETWORKIDLE_MS", "30000"))
+
+    _wait_for_port("127.0.0.1", 8000, total_s=60, label="local TCP")
+
+    try:
+        st, body = _http_check("GET", health_url, timeout=15)
+        if st != 200:
+            pytest.fail(f"GET {health_url} -> HTTP {st!r} body[0:500]={body!r}")
+        _preflight_log(f"GET {health_url} -> 200, body[0:200]={body[:200]!r}")
+    except Exception as e:
+        pytest.fail(
+            f"API health check failed: {e}\n{traceback.format_exc()}"
+        )
+
+    try:
+        st, body = _http_check("GET", DASHBOARD_URL, timeout=20)
+        if st != 200:
+            pytest.fail(
+                f"GET {DASHBOARD_URL} -> HTTP {st!r} body[0:500]={body!r}"
+            )
+        low = (body or "").lower()
+        if "html" not in low and "<!doctype" not in low:
+            _preflight_log(
+                f"WARNING: dashboard response does not look like HTML (body[0:200]={body[:200]!r})"
+            )
+        _preflight_log("dashboard URL returned HTTP 200 and looks like a document response")
+    except Exception as e:
+        pytest.fail(
+            f"Dashboard HTTP check failed: {e}\n{traceback.format_exc()}"
+        )
+
+    try:
+        h = {"X-API-Key": api_key}
+        st, body = _http_check("GET", f"{API_BASE_URL}/memories/stats", headers=h, timeout=20)
+        if st != 200:
+            pytest.fail(
+                f"GET /memories/stats (with X-API-Key) -> HTTP {st!r} body[0:500]={body!r}"
+            )
+        _preflight_log("authenticated /memories/stats -> 200 (same as API tests)")
+    except Exception as e:
+        pytest.fail(
+            f"Authenticated stats check failed: {e}\n{traceback.format_exc()}"
+        )
+
+    _playwright_chromium_sanity(
+        api_key,
+        preflight_networkidle=True,
+        networkidle_ms=net_ms,
+        strict_networkidle=strict_net,
+    )
+    _preflight_log("all preflight checks passed; starting tests")
 
 
 # ==================== Fixtures ====================
