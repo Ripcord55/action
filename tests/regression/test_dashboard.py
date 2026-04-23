@@ -18,6 +18,7 @@ Dependencies for this file are declared only here (no separate requirements txt 
 
 **Opt out:** ``POWERMEM_DASHBOARD_NO_AUTO_INSTALL=1`` — skip auto pip; missing plugin → module skip.
 ``POWERMEM_DASHBOARD_NO_AUTO_BROWSER_INSTALL=1`` — skip ``playwright install`` (packages still auto-pip if needed).
+``POWERMEM_DASHBOARD_NO_AUTO_BROWSER_DEPS=1`` — do not use ``--with-deps`` on Linux/CI.
 
 **Server reset before cases (default):** At session start, from the repo root, runs
 ``make server-stop`` then ``make server-dashboard-start`` so the dashboard is built
@@ -92,6 +93,9 @@ def _ensure_dashboard_playwright_environment() -> None:
     has_plugin = importlib.util.find_spec("pytest_playwright") is not None
     no_auto_pip = _env_truthy("POWERMEM_DASHBOARD_NO_AUTO_INSTALL")
     no_auto_browser = _env_truthy("POWERMEM_DASHBOARD_NO_AUTO_BROWSER_INSTALL")
+    no_auto_browser_deps = _env_truthy("POWERMEM_DASHBOARD_NO_AUTO_BROWSER_DEPS")
+    is_ci = _env_truthy("CI")
+    is_linux = sys.platform.startswith("linux")
 
     if not has_plugin:
         if no_auto_pip:
@@ -131,15 +135,40 @@ def _ensure_dashboard_playwright_environment() -> None:
             )
 
     if not no_auto_browser:
-        print("[test_dashboard] Ensuring Playwright Chromium: playwright install chromium\n", file=sys.stderr)
-        bproc = subprocess.run(
-            [sys.executable, "-m", "playwright", "install", "chromium"],
-            cwd=_REPO_ROOT,
+        install_cmds = []
+
+        # In GitHub Actions / CI Linux, browser binaries alone are often insufficient.
+        # Try with system dependencies first, then fall back to plain install.
+        if is_linux and is_ci and not no_auto_browser_deps:
+            install_cmds.append(
+                (
+                    [sys.executable, "-m", "playwright", "install", "--with-deps", "chromium"],
+                    "playwright install --with-deps chromium",
+                )
+            )
+        install_cmds.append(
+            (
+                [sys.executable, "-m", "playwright", "install", "chromium"],
+                "playwright install chromium",
+            )
         )
-        if bproc.returncode != 0:
+
+        last_rc: Optional[int] = None
+        for cmd, label in install_cmds:
+            print(f"[test_dashboard] Ensuring Playwright Chromium: {label}\n", file=sys.stderr)
+            bproc = subprocess.run(cmd, cwd=_REPO_ROOT)
+            last_rc = bproc.returncode
+            if last_rc == 0:
+                break
+            print(
+                f"[test_dashboard] Browser install step failed (exit {last_rc}): {label}",
+                file=sys.stderr,
+            )
+        else:
             pytest.skip(
-                f"playwright install chromium failed (exit {bproc.returncode}). "
-                "Run manually: playwright install chromium",
+                f"playwright browser install failed (exit {last_rc}). "
+                "Run manually: playwright install --with-deps chromium "
+                "(or playwright install chromium)",
                 allow_module_level=True,
             )
 
